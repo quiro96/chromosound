@@ -2,7 +2,7 @@ import streamlit as st
 import numpy as np
 import librosa
 import matplotlib.pyplot as plt
-from scipy.interpolate import interp2d
+from scipy.interpolate import RegularGridInterpolator # Modifica questa importazione in alto (riga 5)
 from moviepy.editor import VideoClip, AudioFileClip, CompositeVideoClip, ColorClip
 import tempfile
 import os
@@ -14,21 +14,26 @@ def compute_mandala_data(y, sr):
     S = librosa.stft(y, n_fft=512, hop_length=128, win_length=256)
     P = librosa.amplitude_to_db(np.abs(S), ref=np.max)
     
-    # 2. Normalizzazione (Taglio all'80% come in MATLAB)
+    # 2. Normalizzazione
     max_p = np.max(P)
     P[P > max_p * 0.8] = max_p * 0.8
     
-    # 3. INTERPOLAZIONE (1000 punti per fluidità)
+    # 3. INTERPOLAZIONE (Nuovo metodo compatibile)
     num_punti_target = 1000
     f_len, p_len = P.shape
-    x_old = np.linspace(0, 1, p_len)
-    y_old = np.linspace(0, 1, f_len)
-    f_interp = interp2d(x_old, y_old, P, kind='linear')
     
-    x_new = np.linspace(0, 1, num_punti_target)
-    P = f_interp(x_new, y_old)
+    # Creiamo i vettori per l'interpolatore
+    x_old = np.linspace(0, 1, f_len)
+    y_old = np.linspace(0, 1, p_len)
+    interp_func = RegularGridInterpolator((x_old, y_old), P, bounds_error=False, fill_value=None)
     
-    # 4. FIX CONTINUITÀ (Sfuma giunzione ore 3)
+    # Creiamo la nuova griglia 1000 punti
+    y_new = np.linspace(0, 1, num_punti_target)
+    X_new_mesh, Y_new_mesh = np.meshgrid(x_old, y_new, indexing='ij')
+    pts = np.array([X_new_mesh.ravel(), Y_new_mesh.ravel()]).T
+    P = interp_func(pts).reshape(f_len, num_punti_target)
+    
+    # 4. FIX CONTINUITÀ
     n_blend = 20
     for i in range(n_blend):
         alpha = i / n_blend
@@ -42,7 +47,7 @@ def compute_mandala_data(y, sr):
     Theta = np.linspace(0, 2*np.pi, P.shape[1])
     
     return P, R, Theta
-
+    
 def make_frame(t, P, R, Theta, config, duration_audio):
     t_intro = config['intro']
     t_audio = duration_audio
