@@ -1,6 +1,7 @@
 streamlit
 librosa
-numpy
+numpy<2.0.0
 matplotlib
-scipy
-moviepy
+scipy==1.13.1
+moviepy==1.0.3
+proglog
